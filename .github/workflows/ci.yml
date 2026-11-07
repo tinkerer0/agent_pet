@@ -1,0 +1,19 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build Universal app
+        run: ARCHS="arm64 x86_64" bash scripts/build.sh
+      - name: Test monitor and bundled animations
+        run: bash scripts/test.sh dist/AgentPet.app/Contents/Resources
