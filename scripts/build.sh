@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${AGENT_PET_OUTPUT_APP:-$ROOT/dist/AgentPet.app}"
-VERSION="${AGENT_PET_VERSION:-0.1.0}"
+VERSION="${AGENT_PET_VERSION:-0.1.1}"
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
 read -r -a architectures <<< "${ARCHS:-$(uname -m)}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid AGENT_PET_VERSION' >&2; exit 1; }
@@ -34,7 +34,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleExecutable</key><string>AgentPet</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$VERSION</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleVersion</key><string>$VERSION</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>

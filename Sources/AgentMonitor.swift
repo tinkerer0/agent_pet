@@ -120,7 +120,7 @@ final class CodexLogReader {
                     break scan
                 }
             }
-            remainder = lines.first.map(Data.init) ?? Data()
+            remainder = lines.first.map { Data($0) } ?? Data()
             // Tool results may be megabytes on one line. Discard them without
             // imposing a time-based expiry on legitimate long-running turns.
             if remainder.count > 1_048_576 {
