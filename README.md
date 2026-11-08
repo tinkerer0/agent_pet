@@ -4,6 +4,14 @@
 
 Clawd, Cody, 한 책상에서 함께 일하는 두 캐릭터 중에서 고를 수 있습니다. 작업이 없으면 눈을 감고 쉬고, 바빠질수록 연기와 불꽃이 커집니다.
 
+| 0개 · 휴식 | 1–2개 · 여유 | 3–4개 · 집중 |
+| :---: | :---: | :---: |
+| ![0개 세션: 눈을 감고 쉬는 Clawd와 Cody](docs/previews/sessions-00.gif) | ![1–2개 세션: 여유롭게 타이핑](docs/previews/sessions-01-02.gif) | ![3–4개 세션: 집중해서 타이핑](docs/previews/sessions-03-04.gif) |
+| **5–6개 · 연기** | **7–9개 · 불꽃** | **10개 이상 · 더 큰 불꽃** |
+| ![5–6개 세션: 빠른 타이핑과 연기](docs/previews/sessions-05-06.gif) | ![7–9개 세션: 파란 불꽃과 주홍 불꽃](docs/previews/sessions-07-09.gif) | ![10개 이상 세션: 일렉트릭 블루와 코랄·레몬빛 불꽃 및 불티](docs/previews/sessions-10-plus.gif) |
+
+함께 모드의 실제 애니메이션입니다. Clawd·Cody를 각각 표시할 수도 있습니다.
+
 ## 설치
 
 [최신 버전 다운로드](https://github.com/tinkerer0/agent_pet/releases/latest) → ZIP을 풀고 `AgentPet.app`을 실행하세요.
