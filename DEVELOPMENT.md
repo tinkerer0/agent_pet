@@ -21,11 +21,13 @@ ditto -c -k --sequesterRsrc --keepParent dist/AgentPet.app dist/AgentPet-macOS-u
 
 - `Sources/AgentMonitor.swift`: 로컬 작업 수 판독과 단계 전환.
 - `Sources/PetView.swift`: atlas 디코딩, 애니메이션, 마우스 통과와 드래그.
-- `Sources/PetAppearance.swift`: 세 캐릭터 모드와 크기.
+- `Sources/PetAppearance.swift`: 세 캐릭터·함께 모드와 크기.
 - `Sources/AppDelegate.swift`: 창, 메뉴, 환경설정, 화면 상태.
-- `Resources/`: 세 모드 × 여섯 단계의 atlas PNG와 타이밍 JSON.
+- `Resources/`: 네 모드 × 여섯 단계의 atlas PNG와 타이밍 JSON.
 - `Tests/`: 로그 수명주기·잘린 기록·중복 제거·단계 안정성·에셋 렌더링 확인.
 
-단독 프레임은 48×42, 함께 프레임은 96×48입니다. PNG에는 프레임이 가로로 나열되며 JSON의 `durations`는 밀리초 단위입니다. `codex-`, `together-` 접두사로 모드를 구분합니다. 접두사가 없는 에셋은 Clawd입니다.
+단독 프레임은 48×42, 함께 프레임은 96×48입니다. PNG에는 프레임이 가로로 나열되며 JSON의 `durations`는 밀리초 단위입니다. `codex-`, `grok-`, `together-` 접두사로 모드를 구분합니다. 접두사가 없는 에셋은 Clawd입니다.
+
+세 캐릭터는 Clawd 형태를 공유하며 몸색과 불꽃 색으로 구분합니다. 7–9개와 10개 이상은 캐릭터별로 같은 불꽃 팔레트를 쓰고, 크기·불티·타이핑 속도로 단계를 구분합니다. Grok은 외형 선택지이며 세션 감지는 Claude·Codex만 지원합니다.
 
 함께 모드 atlas에는 두 타임라인의 전환 시점을 합친 프레임이 들어 있습니다. 작은·보통·큰·아주 큰 크기는 각각 픽셀 2·3·4·6배이며, 보간 없이 그립니다. 시스템의 동작 줄이기와 화면 잠자기를 반영합니다.

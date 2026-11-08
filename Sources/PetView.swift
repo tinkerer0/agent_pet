@@ -56,7 +56,7 @@ final class PetView: NSView {
 
     init(resources: URL, frame: NSRect) throws {
         super.init(frame: frame)
-        for prefix in ["", "codex-", "together-"] {
+        for prefix in PetAppearance.allCases.map(\.assetPrefix) {
             for name in ["idle", "calm", "steady", "busy", "heated", "rush"] {
                 loops[prefix + name] = try SpriteLoop(name: prefix + name, resources: resources)
             }

@@ -2,19 +2,29 @@
 
 **Claude·Codex의 작업 수에 맞춰 타이핑하고, 쉬고, 불타는 macOS 데스크톱 친구.**
 
-Clawd, Cody, 한 책상에서 함께 일하는 두 캐릭터 중에서 고를 수 있습니다. 작업이 없으면 눈을 감고 쉬고, 바빠질수록 연기와 불꽃이 커집니다.
+Clawd·Cody·Grok, 그리고 Clawd와 Cody가 한 책상에서 함께 일하는 모드 중에서 고를 수 있습니다. 세 캐릭터는 같은 형태에 서로 다른 색을 입혔습니다. 작업이 없으면 눈을 감고 쉬고, 바빠질수록 연기와 불꽃이 커집니다.
+
+| 캐릭터 | 몸색 | 불꽃 |
+| --- | --- | --- |
+| Clawd · Claude | 주황 | 일렉트릭 블루 |
+| Cody · Codex | 하늘색 | 코랄 |
+| Grok | 보라 | 라임 |
 
 | 0개 · 휴식 | 1–2개 · 여유 | 3–4개 · 집중 |
 | :---: | :---: | :---: |
 | ![0개 세션: 눈을 감고 쉬는 Clawd와 Cody](docs/previews/sessions-00.gif) | ![1–2개 세션: 여유롭게 타이핑](docs/previews/sessions-01-02.gif) | ![3–4개 세션: 집중해서 타이핑](docs/previews/sessions-03-04.gif) |
 | **5–6개 · 연기** | **7–9개 · 불꽃** | **10개 이상 · 더 큰 불꽃** |
-| ![5–6개 세션: 빠른 타이핑과 연기](docs/previews/sessions-05-06.gif) | ![7–9개 세션: 파란 불꽃과 주홍 불꽃](docs/previews/sessions-07-09.gif) | ![10개 이상 세션: 일렉트릭 블루와 코랄·레몬빛 불꽃 및 불티](docs/previews/sessions-10-plus.gif) |
+| ![5–6개 세션: 빠른 타이핑과 연기](docs/previews/sessions-05-06.gif) | ![7–9개 세션: 일렉트릭 블루와 코랄 불꽃](docs/previews/sessions-07-09.gif) | ![10개 이상 세션: 같은 색으로 더 커진 불꽃과 불티](docs/previews/sessions-10-plus.gif) |
 
-함께 모드의 실제 애니메이션입니다. Clawd·Cody를 각각 표시할 수도 있습니다.
+함께 모드의 실제 애니메이션입니다. Clawd·Cody·Grok을 각각 표시할 수도 있습니다.
+
+![보라색 Grok과 라임 불꽃](docs/previews/grok.gif)
 
 ## 설치
 
 [최신 버전 다운로드](https://github.com/tinkerer0/agent_pet/releases/latest) → ZIP을 풀고 `AgentPet.app`을 실행하세요.
+
+현재 릴리스 v0.1.0에는 이전 캐릭터가 들어 있습니다. 위의 새 색상과 Grok은 아래 소스 빌드로 사용할 수 있습니다.
 
 macOS 13 이상용으로 빌드합니다. Apple Silicon에서 실행을 확인했으며, Intel은 빌드 검증만 했습니다. 배포 앱은 ad-hoc 서명이며 Apple 공증을 받지 않았습니다. macOS가 실행을 차단하면 직접 빌드해서 사용할 수 있습니다.
 
@@ -40,10 +50,10 @@ open dist/AgentPet.app
 | 1–2 | 여유롭게 타이핑 |
 | 3–4 | 집중해서 타이핑 |
 | 5–6 | 빠른 타이핑 · 연기 |
-| 7–9 | Clawd 파란 불꽃 · Cody 주홍 불꽃 |
-| 10 이상 | 더 큰 불꽃과 불티 · 일렉트릭 블루 / 코랄·레몬빛 |
+| 7–9 | Clawd 일렉트릭 블루 · Cody 코랄 · Grok 라임 불꽃 |
+| 10 이상 | 같은 불꽃 색 · 더 큰 불꽃과 불티 · 더 빠른 타이핑 |
 
-두 에이전트의 **전체 작업 수**에 반응합니다. 2초마다 확인하고, 낮아진 단계는 4초간 유지될 때 전환합니다. ‘자동 · 실제 작업 수’를 선택하면 미리보기를 끝냅니다.
+어떤 캐릭터를 선택해도 Claude·Codex의 **전체 작업 수**에 반응합니다. Grok은 외형 선택지이며 Grok 세션 감지는 포함하지 않습니다. 2초마다 확인하고, 낮아진 단계는 4초간 유지될 때 전환합니다. ‘자동 · 실제 작업 수’를 선택하면 미리보기를 끝냅니다.
 
 ## 감지와 개인정보
 
@@ -64,4 +74,4 @@ dist/AgentPet.app/Contents/MacOS/AgentPet --status
 
 ## License
 
-코드는 [MIT](LICENSE)입니다. Clawd와 Cody의 캐릭터 디자인은 MIT에 포함되지 않습니다. 이 앱은 Anthropic·OpenAI와 관계없는 개인 프로젝트입니다. [캐릭터 고지](THIRD_PARTY_NOTICES.md)
+코드는 [MIT](LICENSE)입니다. Clawd와 색상 변형 캐릭터의 디자인은 MIT에 포함되지 않습니다. 이 앱은 Anthropic·OpenAI·xAI와 관계없는 개인 프로젝트입니다. [캐릭터 고지](THIRD_PARTY_NOTICES.md)

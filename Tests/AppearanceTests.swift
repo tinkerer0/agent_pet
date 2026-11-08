@@ -25,6 +25,6 @@ import AppKit
                 loops += 1
             }
         }
-        print("PASS: 18 sprite loops decoded and rendered; 3 appearances; small/normal sizes")
+        print("PASS: \(loops) sprite loops decoded and rendered; \(PetAppearance.allCases.count) appearances; small/normal sizes")
     }
 }

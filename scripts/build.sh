@@ -18,7 +18,7 @@ for architecture in "${architectures[@]}"; do
   binaries+=("$binary")
 done
 xcrun lipo -create "${binaries[@]}" -output "$APP/Contents/MacOS/AgentPet"
-for prefix in '' codex- together-; do
+for prefix in '' codex- grok- together-; do
   for state in idle calm steady busy heated rush; do
     cp "$ROOT/Resources/$prefix$state-atlas.png" "$ROOT/Resources/$prefix$state.json" "$APP/Contents/Resources/"
   done

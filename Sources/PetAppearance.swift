@@ -1,12 +1,13 @@
 import AppKit
 
 enum PetAppearance: String, CaseIterable {
-    case claude, codex, together
+    case claude, codex, grok, together
 
     var title: String {
         switch self {
         case .claude: return "Clawd · Claude"
         case .codex: return "Cody · Codex"
+        case .grok: return "Grok · 보라"
         case .together: return "함께 · 한 책상에서"
         }
     }
@@ -19,6 +20,7 @@ enum PetAppearance: String, CaseIterable {
         switch self {
         case .claude: return ""
         case .codex: return "codex-"
+        case .grok: return "grok-"
         case .together: return "together-"
         }
     }
