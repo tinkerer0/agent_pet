@@ -18,7 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var preview: Int?
     private var sleeping = false
     private var scale = 5
-    private var appearance: PetAppearance = .together
+    private let appearance: PetAppearance = .claude
+    private var colors = PetColors.load()
+    private var colorWindow: NSPanel?
+    private var colorWells: [PetColorPart: NSColorWell] = [:]
     private var observers: [NSObjectProtocol] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -29,11 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let savedScale = UserDefaults.standard.integer(forKey: "pixelScale")
         if (3...8).contains(savedScale) { scale = savedScale }
-        if let saved = UserDefaults.standard.string(forKey: "appearance"),
-           let selected = PetAppearance(rawValue: saved) { appearance = selected }
         let size = appearance.size(forPreset: scale)
         do {
             pet = try PetView(resources: Bundle.main.resourceURL!, frame: NSRect(origin: .zero, size: size))
+            try pet.setColors(colors)
         } catch {
             let alert = NSAlert()
             alert.messageText = "AgentPet 에셋을 열지 못했어요"
@@ -128,17 +130,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         demo.submenu = demos
         menu.addItem(demo)
-        let characters = NSMenuItem(title: "캐릭터", action: nil, keyEquivalent: "")
-        let characterMenu = NSMenu()
-        for (index, choice) in PetAppearance.allCases.enumerated() {
-            let item = NSMenuItem(title: choice.title, action: #selector(selectAppearance(_:)), keyEquivalent: "")
-            item.tag = index
-            item.target = self
-            item.state = appearance == choice ? .on : .off
-            characterMenu.addItem(item)
-        }
-        characters.submenu = characterMenu
-        menu.addItem(characters)
+        let editColors = NSMenuItem(title: "색상…", action: #selector(showColors), keyEquivalent: "")
+        editColors.target = self
+        menu.addItem(editColors)
         let sizes = NSMenuItem(title: "크기", action: nil, keyEquivalent: "")
         let sizeMenu = NSMenu()
         for (value, title) in [(4,"작게"),(5,"보통"),(6,"크게"),(8,"아주 크게")] {
@@ -167,12 +161,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UserDefaults.standard.set(scale, forKey: "pixelScale")
         resizePanel()
     }
-    @objc private func selectAppearance(_ item: NSMenuItem) {
-        appearance = PetAppearance.allCases[item.tag]
-        UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
-        pet.setPetAppearance(appearance)
-        resizePanel()
-        updateAppearance()
+    @objc private func showColors() {
+        if colorWindow == nil {
+            let window = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 270, height: 215),
+                styleMask: [.titled, .closable, .utilityWindow], backing: .buffered, defer: false)
+            window.title = "캐릭터 색상"
+            window.isReleasedWhenClosed = false
+            window.level = .floating
+            let stack = NSStackView()
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.spacing = 14
+            stack.translatesAutoresizingMaskIntoConstraints = false
+            for part in PetColorPart.allCases {
+                let label = NSTextField(labelWithString: part.title)
+                label.widthAnchor.constraint(equalToConstant: 140).isActive = true
+                let well = NSColorWell(frame: .zero)
+                well.tag = part.rawValue
+                well.color = colors[part].color
+                well.target = self
+                well.action = #selector(changeColor(_:))
+                well.setAccessibilityLabel(part.title + " 색상")
+                well.widthAnchor.constraint(equalToConstant: 70).isActive = true
+                well.heightAnchor.constraint(equalToConstant: 28).isActive = true
+                colorWells[part] = well
+                let row = NSStackView(views: [label, well])
+                row.spacing = 12
+                row.alignment = .centerY
+                stack.addArrangedSubview(row)
+            }
+            let reset = NSButton(title: "기본색으로 복원", target: self, action: #selector(resetColors))
+            reset.bezelStyle = .rounded
+            stack.addArrangedSubview(reset)
+            window.contentView!.addSubview(stack)
+            NSLayoutConstraint.activate([
+                stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 20),
+                stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 20)
+            ])
+            window.center()
+            colorWindow = window
+        }
+        NSColorPanel.shared.showsAlpha = false
+        NSColorPanel.shared.isContinuous = true
+        NSApp.activate(ignoringOtherApps: true)
+        colorWindow?.makeKeyAndOrderFront(nil)
+    }
+    @objc private func changeColor(_ well: NSColorWell) {
+        guard let part = PetColorPart(rawValue: well.tag), let value = PetRGB(well.color) else { return }
+        var next = colors
+        next[part] = value
+        applyColors(next)
+    }
+    @objc private func resetColors() {
+        colorWells.values.forEach { $0.deactivate() }
+        NSColorPanel.shared.orderOut(nil)
+        applyColors(.standard)
+    }
+    private func applyColors(_ next: PetColors) {
+        do {
+            try pet.setColors(next)
+            colors = next
+            colors.save()
+        } catch {
+            NSSound.beep()
+        }
+        for (part, well) in colorWells { well.color = colors[part].color }
     }
     private func resizePanel() {
         let old = panel.frame

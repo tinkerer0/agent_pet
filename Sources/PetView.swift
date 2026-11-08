@@ -13,15 +13,16 @@ struct SpriteLoop {
     let bitmaps: [NSBitmapImageRep]
     let durations: [TimeInterval]
 
-    init(name: String, resources: URL) throws {
+    init(name: String, resources: URL, colors: PetColors = .standard) throws {
         let metadata = try JSONDecoder().decode(SpriteMetadata.self,
             from: Data(contentsOf: resources.appendingPathComponent(name + ".json")))
         let expected = name.hasPrefix("together-") ? NSSize(width: 96, height: 48) : NSSize(width: 48, height: 42)
         guard let atlas = NSImage(contentsOf: resources.appendingPathComponent(name + "-atlas.png")),
-              let cg = atlas.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let original = atlas.cgImage(forProposedRect: nil, context: nil, hints: nil),
               !metadata.durations.isEmpty, metadata.width == Int(expected.width), metadata.height == Int(expected.height),
-              cg.width == metadata.width * metadata.durations.count, cg.height == metadata.height,
+              original.width == metadata.width * metadata.durations.count, original.height == metadata.height,
               metadata.durations.allSatisfy({ $0 > 0 }) else { throw ProbeError.command("Invalid sprite: \(name)") }
+        let cg = try colors.recolor(original)
         var images: [NSImage] = []
         var bitmaps: [NSBitmapImageRep] = []
         for index in metadata.durations.indices {
@@ -44,6 +45,8 @@ final class PetView: NSView {
     var menuProvider: (() -> NSMenu)?
     var onMoveEnded: (() -> Void)?
     private var loops: [String: SpriteLoop] = [:]
+    private let resources: URL
+    private var colors: PetColors = .standard
     private var stage: PetStage = .idle
     private var petAppearance: PetAppearance = .claude
     private var frameIndex = 0
@@ -55,6 +58,7 @@ final class PetView: NSView {
     private var activeLoop: SpriteLoop? { loops[petAppearance.assetPrefix + stage.asset] }
 
     init(resources: URL, frame: NSRect) throws {
+        self.resources = resources
         super.init(frame: frame)
         for prefix in PetAppearance.allCases.map(\.assetPrefix) {
             for name in ["idle", "calm", "steady", "busy", "heated", "rush"] {
@@ -70,6 +74,17 @@ final class PetView: NSView {
         RunLoop.main.add(pointerTimer!, forMode: .common)
     }
     required init?(coder: NSCoder) { nil }
+
+    func setColors(_ next: PetColors) throws {
+        guard next != colors else { return }
+        var updated: [String: SpriteLoop] = [:]
+        for stage in PetStage.allCases {
+            updated[stage.asset] = try SpriteLoop(name: stage.asset, resources: resources, colors: next)
+        }
+        loops = updated
+        colors = next
+        needsDisplay = true
+    }
 
     func setPetAppearance(_ next: PetAppearance) {
         petAppearance = next

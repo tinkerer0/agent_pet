@@ -22,13 +22,16 @@ ditto -c -k --sequesterRsrc --keepParent dist/AgentPet.app dist/AgentPet-macOS-u
 - `Sources/AgentMonitor.swift`: 로컬 작업 수 판독과 단계 전환.
 - `Sources/SessionSignals.swift`: 공통 세션 신호, 도구별 hook 해석, PID 수명 확인과 연결 예시 출력.
 - `Sources/PetView.swift`: atlas 디코딩, 애니메이션, 마우스 통과와 드래그.
-- `Sources/PetAppearance.swift`: 세 캐릭터·함께 모드와 크기.
+- `Sources/PetAppearance.swift`: 기본 Clawd 형태와 크기.
+- `Sources/PetColors.swift`: 몸체·눈·불꽃 팔레트 변환과 색상 저장.
 - `Sources/AppDelegate.swift`: 창, 메뉴, 환경설정, 화면 상태.
-- `Resources/`: 네 모드 × 여섯 단계의 atlas PNG와 타이밍 JSON.
-- `Tests/`: 로그 수명주기·잘린 기록·중복 제거·단계 안정성·에셋 렌더링 확인.
+- `Resources/`: 여섯 단계의 atlas PNG와 타이밍 JSON, 이전 캐릭터 에셋.
+- `Tests/`: 로그 수명주기·잘린 기록·중복 제거·단계 안정성·에셋 렌더링·색상 변환과 저장 확인.
 
-단독 프레임은 48×42, 함께 프레임은 96×48입니다. PNG에는 프레임이 가로로 나열되며 JSON의 `durations`는 밀리초 단위입니다. `codex-`, `grok-`, `together-` 접두사로 모드를 구분합니다. 접두사가 없는 에셋은 Clawd입니다.
+기본 프레임은 48×42입니다. PNG에는 프레임이 가로로 나열되며 JSON의 `durations`는 밀리초 단위입니다. 현재 앱에는 접두사가 없는 Clawd 에셋 여섯 개만 넣습니다. `codex-`, `grok-`, `together-` 에셋은 이전 디자인 자료로 보존합니다.
 
-세 캐릭터는 Clawd 형태를 공유하며 몸색과 불꽃 색으로 구분합니다. 7–9개와 10개 이상은 캐릭터별로 같은 불꽃 팔레트를 쓰고, 크기·불티·타이핑 속도로 단계를 구분합니다. 외형과 감지 대상은 독립적이며, 추가 도구는 [공통 세션 연결](docs/integrations.md)로 합계에 포함합니다.
+몸체·눈·불꽃은 원본 atlas의 해당 색만 바꿉니다. 그림자와 불꽃의 밝은 중심은 선택색에서 만들며, 검정 몸체에는 밝은 면을 추가해 입체감을 유지합니다. 매번 원본에서 변환하므로 색을 반복해서 바꿔도 누적 손실이 없습니다. 기본색은 원본과 같습니다. 투명도·노트북·연기·zzz는 그대로입니다.
 
-함께 모드 atlas에는 두 타임라인의 전환 시점을 합친 프레임이 들어 있습니다. 작은·보통·큰·아주 큰 크기는 각각 픽셀 2·3·4·6배이며, 보간 없이 그립니다. 시스템의 동작 줄이기와 화면 잠자기를 반영합니다.
+7–9개와 10개 이상은 같은 불꽃 팔레트를 쓰고, 크기·불티·타이핑 속도로 단계를 구분합니다. 색상과 감지 대상은 독립적이며, 추가 도구는 [공통 세션 연결](docs/integrations.md)로 합계에 포함합니다.
+
+작은·보통·큰·아주 큰 크기는 각각 픽셀 2·3·4·6배이며, 보간 없이 그립니다. 시스템의 동작 줄이기와 화면 잠자기를 반영합니다.
