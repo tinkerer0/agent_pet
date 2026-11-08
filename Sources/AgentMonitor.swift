@@ -43,8 +43,15 @@ struct StageGate {
 struct AgentSnapshot: Codable {
     let codex: Int
     let claude: Int
+    var additional: [String: Int] = [:]
     let warnings: [String]
-    var total: Int { codex + claude }
+    var total: Int { codex + claude + additional.values.reduce(0, +) }
+    var summary: String {
+        let names = ["grok": "Grok", "cursor": "Cursor", "cline": "Cline", "gemini": "Gemini", "opencode": "OpenCode"]
+        return (["Codex \(codex)", "Claude \(claude)"] + additional.keys.sorted().map {
+            "\(names[$0] ?? $0) \(additional[$0] ?? 0)"
+        }).joined(separator: " · ")
+    }
 }
 
 enum TurnState { case active, idle, unknown }
@@ -188,10 +195,12 @@ final class AgentMonitor {
     }
 
     func snapshot() -> AgentSnapshot {
-        var warnings: [String] = []
+        let signals = SessionSignalStore(home: home).counts()
+        var warnings = signals.warnings
         let processes: String
         do { processes = try command("/bin/ps", ["-axo", "pid=,comm="]) }
-        catch { return AgentSnapshot(codex: 0, claude: 0, warnings: ["프로세스 상태를 읽지 못함"]) }
+        catch { return AgentSnapshot(codex: 0, claude: 0, additional: signals.agents,
+            warnings: warnings + ["프로세스 상태를 읽지 못함"]) }
         var live = Set<Int>()
         var codexPIDs: [String] = []
         for line in processes.split(separator: "\n") {
@@ -231,6 +240,7 @@ final class AgentMonitor {
                 }
             } catch { warnings.append("Claude 상태 읽기 실패") }
         }
-        return AgentSnapshot(codex: codex, claude: claudeIDs.count, warnings: Array(Set(warnings)).sorted())
+        return AgentSnapshot(codex: codex, claude: claudeIDs.count, additional: signals.agents,
+            warnings: Array(Set(warnings)).sorted())
     }
 }

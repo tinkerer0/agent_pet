@@ -1,6 +1,8 @@
 import AppKit
 
-if CommandLine.arguments.contains("--status") {
+if let code = SessionSignalCLI.handle(Array(CommandLine.arguments.dropFirst())) {
+    exit(code)
+} else if CommandLine.arguments.contains("--status") {
     let snapshot = AgentMonitor().snapshot()
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

@@ -95,7 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.button?.title = preview.map { " \($0) · 미리보기" }
             ?? (incomplete ? " ≥\(count)" : " \(count)")
         let summary = preview.map { "동작 미리보기: \($0)개" }
-            ?? "작업 중 \(snapshot.total)개 · Codex \(snapshot.codex) · Claude \(snapshot.claude)"
+            ?? "작업 중 \(snapshot.total)개 · \(snapshot.summary)"
         pet.toolTip = summary + "\n드래그로 이동 · 우클릭으로 설정"
         pet.setAccessibilityLabel(appearance.title + " · " + summary)
         statusItem.button?.toolTip = summary + (incomplete ? "\n" + snapshot.warnings.joined(separator: " · ") : "")
@@ -110,7 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func makeMenu() -> NSMenu {
         let menu = NSMenu()
         func label(_ text: String) { let item = NSMenuItem(title: text, action: nil, keyEquivalent: ""); item.isEnabled = false; menu.addItem(item) }
-        label(snapshot.map { "작업 중 \($0.total)개 · Codex \($0.codex) / Claude \($0.claude)" } ?? "에이전트 상태 확인 중…")
+        label(snapshot.map { "작업 중 \($0.total)개 · \($0.summary)" } ?? "에이전트 상태 확인 중…")
         for warning in snapshot?.warnings ?? [] { label(warning) }
         menu.addItem(.separator())
         let automatic = NSMenuItem(title: "자동 · 실제 작업 수", action: #selector(useAutomatic), keyEquivalent: "")
