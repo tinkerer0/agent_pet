@@ -15,3 +15,8 @@ xcrun swiftc -swift-version 5 -module-cache-path "$ROOT/.build/module-cache" \
   "$ROOT/Sources/PetView.swift" "$ROOT/Sources/PetColors.swift" "$ROOT/Tests/AppearanceTests.swift" \
   -framework AppKit -o "$ROOT/.build/appearance-tests"
 "$ROOT/.build/appearance-tests" "${1:-$ROOT/Resources}"
+xcrun swiftc -swift-version 5 -module-cache-path "$ROOT/.build/module-cache" \
+  "$ROOT/Sources/AgentMonitor.swift" "$ROOT/Sources/SessionSignals.swift" "$ROOT/Sources/PetAppearance.swift" \
+  "$ROOT/Sources/PetView.swift" "$ROOT/Sources/PetColors.swift" "$ROOT/Sources/AppDelegate.swift" \
+  "$ROOT/Tests/ColorActionTests.swift" -framework AppKit -o "$ROOT/.build/color-action-tests"
+"$ROOT/.build/color-action-tests"

@@ -180,7 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 well.tag = part.rawValue
                 well.color = colors[part].color
                 well.target = self
-                well.action = #selector(changeColor(_:))
+                well.action = #selector(changePetColor(_:))
                 well.setAccessibilityLabel(part.title + " 색상")
                 well.widthAnchor.constraint(equalToConstant: 70).isActive = true
                 well.heightAnchor.constraint(equalToConstant: 28).isActive = true
@@ -206,8 +206,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         colorWindow?.makeKeyAndOrderFront(nil)
     }
-    @objc private func changeColor(_ well: NSColorWell) {
-        guard let part = PetColorPart(rawValue: well.tag), let value = PetRGB(well.color) else { return }
+    @objc private func changePetColor(_ sender: Any?) {
+        guard let well = sender as? NSColorWell,
+              let part = PetColorPart(rawValue: well.tag), let value = PetRGB(well.color) else { return }
         var next = colors
         next[part] = value
         applyColors(next)
