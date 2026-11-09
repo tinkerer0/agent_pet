@@ -4,18 +4,47 @@ import Darwin
 enum PetStage: String, CaseIterable {
     case idle, calm, steady, busy, heated, rush
 
-    static func forCount(_ count: Int) -> PetStage {
-        switch count {
-        case ...0: return .idle
-        case 1..<3: return .calm
-        case 3..<5: return .steady
-        case 5..<7: return .busy
-        case 7..<10: return .heated
-        default: return .rush
-        }
+    static func forCount(_ count: Int, thresholds: StageThresholds = .standard) -> PetStage {
+        thresholds.stage(for: count)
     }
     var rank: Int { Self.allCases.firstIndex(of: self)! }
     var asset: String { rawValue }
+    var title: String {
+        switch self {
+        case .idle: return "휴식 zzz"
+        case .calm: return "여유"
+        case .steady: return "집중"
+        case .busy: return "연기"
+        case .heated: return "불꽃"
+        case .rush: return "폭주 · 큰 불꽃"
+        }
+    }
+}
+
+struct StageThresholds: Equatable {
+    static let stages: [PetStage] = [.steady, .busy, .heated, .rush]
+    static let standard = StageThresholds(starts: [3, 5, 7, 10])!
+    static let presets = [StageThresholds(starts: [1, 2, 2, 3])!,
+                          StageThresholds(starts: [2, 3, 4, 5])!, standard]
+    static let defaultsKey = "petMotionThresholds"
+    let starts: [Int]
+
+    init?(starts: [Int]) {
+        guard starts.count == Self.stages.count,
+              starts.allSatisfy({ (1...99).contains($0) }),
+              zip(starts, starts.dropFirst()).allSatisfy({ $0.0 <= $0.1 }) else { return nil }
+        self.starts = starts
+    }
+    func stage(for count: Int) -> PetStage {
+        guard count > 0 else { return .idle }
+        return zip(Self.stages, starts).reversed().first(where: { count >= $0.1 })?.0 ?? .calm
+    }
+    static func load(from defaults: UserDefaults = .standard) -> StageThresholds {
+        guard let starts = defaults.array(forKey: defaultsKey) as? [Int],
+              let value = StageThresholds(starts: starts) else { return .standard }
+        return value
+    }
+    func save(to defaults: UserDefaults = .standard) { defaults.set(starts, forKey: Self.defaultsKey) }
 }
 
 /// Rising load takes effect immediately; a lower stage must persist for four seconds.
@@ -24,8 +53,8 @@ struct StageGate {
     private var pending: PetStage?
     private var pendingSince: TimeInterval = 0
 
-    mutating func update(count: Int, now: TimeInterval) -> PetStage {
-        let next = PetStage.forCount(count)
+    mutating func update(count: Int, now: TimeInterval, thresholds: StageThresholds = .standard) -> PetStage {
+        let next = PetStage.forCount(count, thresholds: thresholds)
         if next.rank >= stage.rank {
             stage = next
             pending = nil

@@ -26,10 +26,11 @@ struct SpriteLoop {
         var images: [NSImage] = []
         var bitmaps: [NSBitmapImageRep] = []
         for index in metadata.durations.indices {
-            guard let frame = cg.cropping(to: CGRect(x: index * metadata.width, y: 0,
+            guard let cropped = cg.cropping(to: CGRect(x: index * metadata.width, y: 0,
                                                     width: metadata.width, height: metadata.height)) else {
                 throw ProbeError.command("Invalid frame: \(name)")
             }
+            let frame = name == "rush" ? try RushEmbers.render(on: cropped, frame: index, colors: colors) : cropped
             images.append(NSImage(cgImage: frame, size: NSSize(width: metadata.width, height: metadata.height)))
             bitmaps.append(NSBitmapImageRep(cgImage: frame))
         }
@@ -38,6 +39,37 @@ struct SpriteLoop {
         width = metadata.width
         height = metadata.height
         durations = metadata.durations.map { Double($0) / 1000 }
+    }
+}
+
+/// Small sparks rise through the space above the flame; the source atlas stays intact.
+enum RushEmbers {
+    static func render(on frameImage: CGImage, frame: Int, colors: PetColors) throws -> CGImage {
+        let width = frameImage.width, height = frameImage.height
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: frameImage.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            throw ProbeError.command("Ember context unavailable")
+        }
+        context.draw(frameImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        context.setShouldAntialias(false)
+        let light = PetRGB(colors.replacements[0x6dc9ff]!)
+        let core = PetRGB(colors.replacements[0xd9fbff]!)
+        for (x, offset, drift) in [(17, 0, -2), (23, 5, 1), (29, 10, 2), (21, 15, -1)] {
+            let age = (frame + 21 - offset) % 21
+            guard age < 9 else { continue }
+            let column = x + Int((Double(age * drift) / 8).rounded())
+            let top = 9 - age
+            let alpha: CGFloat = age < 5 ? 0.95 : CGFloat(9 - age) / 5
+            context.setFillColor((age < 3 ? core : light).color.withAlphaComponent(alpha).cgColor)
+            context.fill(CGRect(x: column, y: height - top - 1, width: 1, height: 1))
+            if age < 3 {
+                context.setFillColor(colors.fire.color.withAlphaComponent(0.4).cgColor)
+                context.fill(CGRect(x: column, y: height - top - 2, width: 1, height: 1))
+            }
+        }
+        guard let result = context.makeImage() else { throw ProbeError.command("Ember image unavailable") }
+        return result
     }
 }
 

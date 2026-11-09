@@ -15,7 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var polling = false
     private var snapshot: AgentSnapshot?
     private var gate = StageGate()
-    private var preview: Int?
+    private var preview: PetStage?
+    private var thresholds = StageThresholds.load()
+    private var motionWindow: MotionSettingsPanel?
     private var sleeping = false
     private var scale = 5
     private let appearance: PetAppearance = .claude
@@ -90,13 +92,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateAppearance() {
         guard let snapshot else { return }
-        let count = preview ?? snapshot.total
-        let stage = preview == nil ? gate.update(count: count, now: ProcessInfo.processInfo.systemUptime) : PetStage.forCount(count)
+        let count = snapshot.total
+        let stage = preview ?? gate.update(count: count, now: ProcessInfo.processInfo.systemUptime, thresholds: thresholds)
         pet.setStage(stage)
         let incomplete = !snapshot.warnings.isEmpty
-        statusItem.button?.title = preview.map { " \($0) · 미리보기" }
+        statusItem.button?.title = preview.map { " \($0.title) · 미리보기" }
             ?? (incomplete ? " ≥\(count)" : " \(count)")
-        let summary = preview.map { "동작 미리보기: \($0)개" }
+        let summary = preview.map { "동작 미리보기: \($0.title)" }
             ?? "작업 중 \(snapshot.total)개 · \(snapshot.summary)"
         pet.toolTip = summary + "\n드래그로 이동 · 우클릭으로 설정"
         pet.setAccessibilityLabel(appearance.title + " · " + summary)
@@ -121,15 +123,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(automatic)
         let demo = NSMenuItem(title: "동작 미리보기", action: nil, keyEquivalent: "")
         let demos = NSMenu()
-        for (count, title) in [(0,"0개 · 휴식 zzz"),(1,"1개 · 여유"),(3,"3개 · 집중"),(5,"5개 · 머리에서 연기"),(7,"7~9개 · 불꽃"),(10,"10개 이상 · 폭주")] {
-            let item = NSMenuItem(title: title, action: #selector(showPreview(_:)), keyEquivalent: "")
-            item.tag = count
+        for stage in PetStage.allCases {
+            let item = NSMenuItem(title: stage.title, action: #selector(showPreview(_:)), keyEquivalent: "")
+            item.tag = stage.rank
             item.target = self
-            item.state = preview == count ? .on : .off
+            item.state = preview == stage ? .on : .off
             demos.addItem(item)
         }
         demo.submenu = demos
         menu.addItem(demo)
+        let motion = NSMenuItem(title: "모션 기준…", action: #selector(showMotionSettings), keyEquivalent: "")
+        motion.target = self
+        menu.addItem(motion)
         let editColors = NSMenuItem(title: "색상…", action: #selector(showColors), keyEquivalent: "")
         editColors.target = self
         menu.addItem(editColors)
@@ -155,7 +160,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func useAutomatic() { preview = nil; gate = StageGate(); updateAppearance() }
-    @objc private func showPreview(_ item: NSMenuItem) { preview = item.tag; updateAppearance() }
+    @objc private func showPreview(_ item: NSMenuItem) {
+        guard PetStage.allCases.indices.contains(item.tag) else { return }
+        preview = PetStage.allCases[item.tag]
+        updateAppearance()
+    }
+    @objc private func showMotionSettings() {
+        if motionWindow == nil {
+            let window = MotionSettingsPanel()
+            window.onApply = { [weak self] next in
+                guard let self else { return }
+                self.thresholds = next
+                next.save()
+                self.preview = nil
+                self.gate = StageGate()
+                self.updateAppearance()
+            }
+            motionWindow = window
+        }
+        motionWindow?.configure(thresholds)
+        NSApp.activate(ignoringOtherApps: true)
+        motionWindow?.makeKeyAndOrderFront(nil)
+    }
     @objc private func resize(_ item: NSMenuItem) {
         scale = item.tag
         UserDefaults.standard.set(scale, forKey: "pixelScale")

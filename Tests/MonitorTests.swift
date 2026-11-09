@@ -56,5 +56,32 @@ import Foundation
         assert(gate.update(count: 3, now: 7) == .steady)
         assert(gate.update(count: 7, now: 8) == .heated)
         print("PASS: lifecycle, long tool output, partial/truncated logs, deduplication, live Claude state, stage stability")
+        let standard: [PetStage] = [.idle, .calm, .calm, .steady, .steady, .busy, .busy, .heated, .heated, .heated, .rush]
+        assert((0...10).map { PetStage.forCount($0) } == standard)
+        let three = StageThresholds.presets[0]
+        assert((0...4).map { PetStage.forCount($0, thresholds: three) } == [.idle, .steady, .heated, .rush, .rush])
+        let five = StageThresholds.presets[1]
+        assert((0...5).map { PetStage.forCount($0, thresholds: five) } == PetStage.allCases)
+        let same = StageThresholds(starts: [1, 1, 1, 1])!
+        assert(PetStage.forCount(0, thresholds: same) == .idle)
+        assert(PetStage.forCount(1, thresholds: same) == .rush)
+        for invalid in [[0, 2, 3, 4], [1, 2, 3, 100], [1, 3, 2, 4], [1, 2, 3], []] {
+            assert(StageThresholds(starts: invalid) == nil)
+        }
+        var quickGate = StageGate()
+        assert(quickGate.update(count: 3, now: 0, thresholds: three) == .rush)
+        assert(quickGate.update(count: 1, now: 1, thresholds: three) == .rush)
+        assert(quickGate.update(count: 1, now: 5, thresholds: three) == .steady)
+        let suite = "AgentPet.MotionTests." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        assert(StageThresholds.load(from: defaults) == .standard)
+        three.save(to: defaults)
+        assert(StageThresholds.load(from: defaults) == three)
+        defaults.set([5, 4, 3, 2], forKey: StageThresholds.defaultsKey)
+        assert(StageThresholds.load(from: defaults) == .standard)
+        StageThresholds.standard.save(to: defaults)
+        assert(StageThresholds.load(from: defaults) == .standard)
+        print("PASS: 3/5/10-session motion presets, tied thresholds, idle, invalid input, persistence and custom stage stability")
     }
 }
