@@ -20,7 +20,7 @@
 
 [최신 버전 다운로드](https://github.com/tinkerer0/agent_pet/releases/latest) → ZIP을 풀고 `AgentPet.app`을 실행하세요.
 
-현재 릴리스 v0.1.0에는 이전 캐릭터가 들어 있습니다. 색상 설정과 추가 도구 연결은 아래 소스 빌드로 사용할 수 있습니다.
+릴리스 ZIP에는 색상 설정, 모션 기준 설정, 추가 도구 연결이 모두 들어 있습니다.
 
 macOS 13 이상용으로 빌드합니다. Apple Silicon에서 실행을 확인했으며, Intel은 빌드 검증만 했습니다. 배포 앱은 ad-hoc 서명이며 Apple 공증을 받지 않았습니다. macOS가 실행을 차단하면 직접 빌드해서 사용할 수 있습니다.
 
