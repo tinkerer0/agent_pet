@@ -20,7 +20,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var motionWindow: MotionSettingsPanel?
     private var sleeping = false
     private var scale = 5
-    private let appearance: PetAppearance = .claude
     private var colors = PetColors.load()
     private var colorWindow: NSPanel?
     private var colorWells: [PetColorPart: NSColorWell] = [:]
@@ -34,10 +33,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let savedScale = UserDefaults.standard.integer(forKey: "pixelScale")
         if (3...8).contains(savedScale) { scale = savedScale }
-        let size = appearance.size(forPreset: scale)
+        let size = PetAppearance.size(forPreset: scale)
         do {
-            pet = try PetView(resources: Bundle.main.resourceURL!, frame: NSRect(origin: .zero, size: size))
-            try pet.setColors(colors)
+            pet = try PetView(resources: Bundle.main.resourceURL!, frame: NSRect(origin: .zero, size: size), colors: colors)
         } catch {
             let alert = NSAlert()
             alert.messageText = "AgentPet 에셋을 열지 못했어요"
@@ -57,7 +55,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.contentView = pet
-        pet.setPetAppearance(appearance)
         pet.menuProvider = { [weak self] in self?.makeMenu() ?? NSMenu() }
         pet.onMoveEnded = { [weak self] in self?.keepOnScreen(); self?.savePosition() }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -72,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         watchScreenState()
         poll()
         let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in self?.poll() }
+        timer.tolerance = 0.2
         pollTimer = timer
         RunLoop.main.add(timer, forMode: .common)
     }
@@ -101,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let summary = preview.map { "동작 미리보기: \($0.title)" }
             ?? "작업 중 \(snapshot.total)개 · \(snapshot.summary)"
         pet.toolTip = summary + "\n드래그로 이동 · 우클릭으로 설정"
-        pet.setAccessibilityLabel(appearance.title + " · " + summary)
+        pet.setAccessibilityLabel(PetAppearance.title + " · " + summary)
         statusItem.button?.toolTip = summary + (incomplete ? "\n" + snapshot.warnings.joined(separator: " · ") : "")
     }
 
@@ -256,7 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     private func resizePanel() {
         let old = panel.frame
-        let size = appearance.size(forPreset: scale)
+        let size = PetAppearance.size(forPreset: scale)
         panel.setFrame(NSRect(x: old.midX - size.width / 2, y: old.minY, width: size.width, height: size.height), display: true)
         pet.frame = NSRect(origin: .zero, size: size)
         keepOnScreen()

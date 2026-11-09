@@ -18,10 +18,8 @@ for architecture in "${architectures[@]}"; do
   binaries+=("$binary")
 done
 xcrun lipo -create "${binaries[@]}" -output "$APP/Contents/MacOS/AgentPet"
-for prefix in ''; do
-  for state in idle calm steady busy heated rush; do
-    cp "$ROOT/Resources/$prefix$state-atlas.png" "$ROOT/Resources/$prefix$state.json" "$APP/Contents/Resources/"
-  done
+for state in idle calm steady busy heated rush; do
+  cp "$ROOT/Resources/$state-atlas.png" "$ROOT/Resources/$state.json" "$APP/Contents/Resources/"
 done
 cp "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<PLIST

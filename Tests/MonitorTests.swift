@@ -42,7 +42,17 @@ import Foundation
         try expect(.unknown)
         assert(CodexLogReader.lifecycle(Data("{\"type\":\"response_item\",\"payload\":{\"type\":\"task_started\"}}".utf8)) == nil)
         let path = "/Users/example/.codex/sessions/2026/11/07/rollout-test.jsonl"
-        assert(AgentMonitor.openRollouts("p1\nn\(path)\np2\nn\(path)\nn/tmp/unrelated.jsonl") == [path])
+        assert(AgentMonitor.openRollouts([path, path, "/tmp/unrelated.jsonl",
+            "/Users/example/.codex/sessions/notes.jsonl", "/Users/example/.codex/rollout-x.jsonl"]) == [path])
+        // The in-process scan must see this test process and report its open files.
+        let scan = ProcessTable.scan()
+        assert(scan?.live.contains(Int(getpid())) == true)
+        let probe = try FileHandle(forReadingFrom: file)
+        defer { try? probe.close() }
+        // The kernel reports /private/var paths; Foundation's resolver would strip /private.
+        let real = realpath(file.path, nil).map { pointer in defer { free(pointer) }; return String(cString: pointer) }
+        assert(real != nil && ProcessTable.openFiles(getpid())?.contains(real!) == true)
+        assert(ProcessTable.openFiles(Int32.max) == [])
         for (status, expected) in [("busy",true),("shell",true),("idle",false),("waiting",false)] {
             let data = Data("{\"pid\":12,\"sessionId\":\"a\",\"status\":\"\(status)\"}".utf8)
             assert((AgentMonitor.workingClaude(data, livePIDs: [12]) != nil) == expected)

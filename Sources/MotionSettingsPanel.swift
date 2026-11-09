@@ -5,7 +5,8 @@ final class MotionSettingsPanel: NSPanel, NSTextFieldDelegate {
     private let presets = NSPopUpButton(frame: .zero, pullsDown: false)
     private var fields: [NSTextField] = []
     private var steppers: [NSStepper] = []
-    private let message = NSTextField(wrappingLabelWithString: "같은 수이면 더 강한 모션을 표시합니다.")
+    private static let hint = "같은 수이면 더 강한 모션을 표시합니다."
+    private let message = NSTextField(wrappingLabelWithString: MotionSettingsPanel.hint)
 
     init() {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 350, height: 350),
@@ -78,7 +79,7 @@ final class MotionSettingsPanel: NSPanel, NSTextFieldDelegate {
             steppers[index].integerValue = value
         }
         presets.selectItem(at: StageThresholds.presets.firstIndex(of: thresholds) ?? 3)
-        message.stringValue = "같은 수이면 더 강한 모션을 표시합니다."
+        message.stringValue = Self.hint
     }
     @objc private func selectPreset(_ sender: NSPopUpButton) {
         guard StageThresholds.presets.indices.contains(sender.indexOfSelectedItem) else { return }
@@ -89,7 +90,7 @@ final class MotionSettingsPanel: NSPanel, NSTextFieldDelegate {
         makeFirstResponder(nil)
         fields[sender.tag].integerValue = sender.integerValue
         presets.selectItem(at: 3)
-        message.stringValue = "같은 수이면 더 강한 모션을 표시합니다."
+        message.stringValue = Self.hint
     }
     func controlTextDidChange(_ notification: Notification) {
         guard let field = notification.object as? NSTextField,

@@ -182,22 +182,53 @@ final class CodexLogReader {
 
 enum ProbeError: Error { case command(String) }
 
-func command(_ executable: String, _ arguments: [String]) throws -> String {
-    let process = Process()
-    let pipe = Pipe()
-    process.executableURL = URL(fileURLWithPath: executable)
-    process.arguments = arguments
-    process.standardOutput = pipe
-    process.standardError = FileHandle.nullDevice
-    try process.run()
-    let deadline = DispatchWorkItem { if process.isRunning { process.terminate() } }
-    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 4, execute: deadline)
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-    deadline.cancel()
-    guard process.terminationStatus == 0 || (executable.hasSuffix("lsof") && process.terminationStatus == 1)
-    else { throw ProbeError.command(executable) }
-    return String(decoding: data, as: UTF8.self)
+/// Reads process state in-process. Spawning `ps` and `lsof` every poll cost
+/// about 0.2 CPU-seconds per poll; these kernel calls take a few milliseconds.
+enum ProcessTable {
+    /// All live PIDs and the running `codex` processes, from one sysctl call.
+    static func scan() -> (live: Set<Int>, codex: [Int32])? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL]
+        let stride = MemoryLayout<kinfo_proc>.stride
+        for _ in 0..<4 {
+            var size = 0
+            guard sysctl(&mib, 3, nil, &size, nil, 0) == 0 else { return nil }
+            // Leave room for processes started between the two calls.
+            var processes = [kinfo_proc](repeating: kinfo_proc(), count: size / stride + 32)
+            size = processes.count * stride
+            guard sysctl(&mib, 3, &processes, &size, nil, 0) == 0 else {
+                if errno == ENOMEM { continue }
+                return nil
+            }
+            var live = Set<Int>()
+            var codex: [Int32] = []
+            for process in processes.prefix(size / stride) {
+                live.insert(Int(process.kp_proc.p_pid))
+                let name = withUnsafeBytes(of: process.kp_proc.p_comm) { Array($0.prefix(while: { $0 != 0 })) }
+                if Int32(process.kp_proc.p_stat) != SZOMB, name.elementsEqual("codex".utf8) {
+                    codex.append(process.kp_proc.p_pid)
+                }
+            }
+            return (live, codex)
+        }
+        return nil
+    }
+
+    /// Paths of files the process holds open. Empty if it already exited, nil if it could not be read.
+    static func openFiles(_ pid: Int32) -> [String]? {
+        let stride = MemoryLayout<proc_fdinfo>.stride
+        let needed = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard needed > 0 else { return kill(pid, 0) == 0 ? nil : [] }
+        var fds = [proc_fdinfo](repeating: proc_fdinfo(), count: Int(needed) / stride + 16)
+        let used = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, &fds, Int32(fds.count * stride))
+        guard used > 0 else { return kill(pid, 0) == 0 ? nil : [] }
+        let infoSize = Int32(MemoryLayout<vnode_fdinfowithpath>.size)
+        return fds.prefix(Int(used) / stride).compactMap { fd in
+            guard fd.proc_fdtype == UInt32(PROX_FDTYPE_VNODE) else { return nil }
+            var info = vnode_fdinfowithpath()
+            guard proc_pidfdinfo(pid, fd.proc_fd, PROC_PIDFDVNODEPATHINFO, &info, infoSize) == infoSize else { return nil }
+            return withUnsafeBytes(of: info.pvip.vip_path) { String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self) }
+        }
+    }
 }
 
 final class AgentMonitor {
@@ -205,13 +236,10 @@ final class AgentMonitor {
     private let logs = CodexLogReader()
     init(home: URL = FileManager.default.homeDirectoryForCurrentUser) { self.home = home }
 
-    static func openRollouts(_ output: String) -> Set<String> {
-        Set(output.split(separator: "\n").compactMap { line in
-            guard line.first == "n" else { return nil }
-            let path = String(line.dropFirst())
-            guard path.contains("/sessions/"), path.hasSuffix(".jsonl"),
-                  URL(fileURLWithPath: path).lastPathComponent.hasPrefix("rollout-") else { return nil }
-            return path
+    static func openRollouts(_ paths: [String]) -> Set<String> {
+        Set(paths.filter { path in
+            path.hasSuffix(".jsonl") && path.contains("/sessions/")
+                && path.split(separator: "/").last?.hasPrefix("rollout-") == true
         })
     }
 
@@ -226,37 +254,27 @@ final class AgentMonitor {
     func snapshot() -> AgentSnapshot {
         let signals = SessionSignalStore(home: home).counts()
         var warnings = signals.warnings
-        let processes: String
-        do { processes = try command("/bin/ps", ["-axo", "pid=,comm="]) }
-        catch { return AgentSnapshot(codex: 0, claude: 0, additional: signals.agents,
-            warnings: warnings + ["프로세스 상태를 읽지 못함"]) }
-        var live = Set<Int>()
-        var codexPIDs: [String] = []
-        for line in processes.split(separator: "\n") {
-            let parts = line.split(maxSplits: 1, whereSeparator: { $0.isWhitespace })
-            guard parts.count == 2, let pid = Int(parts[0]) else { continue }
-            live.insert(pid)
-            if URL(fileURLWithPath: String(parts[1])).lastPathComponent == "codex" {
-                codexPIDs.append(String(pid))
-            }
+        guard let processes = ProcessTable.scan() else {
+            return AgentSnapshot(codex: 0, claude: 0, additional: signals.agents,
+                warnings: warnings + ["프로세스 상태를 읽지 못함"])
         }
+        let live = processes.live
+        var files: [String] = []
+        for pid in processes.codex {
+            if let open = ProcessTable.openFiles(pid) { files += open } else { warnings.append("Codex 프로세스 조회 실패") }
+        }
+        let paths = Self.openRollouts(files)
+        logs.prune(keeping: paths)
         var codex = 0
-        if !codexPIDs.isEmpty {
+        for path in paths {
             do {
-                let output = try command("/usr/sbin/lsof", ["-nP", "-a", "-p", codexPIDs.joined(separator: ","), "-Fn"])
-                let paths = Self.openRollouts(output)
-                logs.prune(keeping: paths)
-                for path in paths {
-                    do {
-                        let state = try logs.state(at: URL(fileURLWithPath: path))
-                        if state == .active { codex += 1 }
-                        if state == .unknown { warnings.append("Codex 상태 미확인") }
-                    } catch {
-                        // The session may have ended between lsof and reading.
-                        if FileManager.default.fileExists(atPath: path) { warnings.append("Codex 기록 읽기 실패") }
-                    }
-                }
-            } catch { warnings.append("Codex 프로세스 조회 실패") }
+                let state = try logs.state(at: URL(fileURLWithPath: path))
+                if state == .active { codex += 1 }
+                if state == .unknown { warnings.append("Codex 상태 미확인") }
+            } catch {
+                // The session may have ended between listing and reading.
+                if FileManager.default.fileExists(atPath: path) { warnings.append("Codex 기록 읽기 실패") }
+            }
         }
         var claudeIDs = Set<String>()
         let directory = home.appendingPathComponent(".claude/sessions")

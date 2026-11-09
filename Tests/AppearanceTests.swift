@@ -59,45 +59,57 @@ import AppKit
                 precondition(body > 0 && eyes > 0)
                 if stage == .heated || stage == .rush { precondition(flames > 0) }
                 let loop = try SpriteLoop(name: stage.asset, resources: resources, colors: colors)
-                precondition(loop.images.count > 1)
+                precondition(loop.frames.count > 1)
             }
         }
         let view = try PetView(resources: resources, frame: NSRect(x: 0, y: 0, width: 144, height: 126))
         for colors in [blackLime, whiteBlue, .standard] {
             try view.setColors(colors)
             view.setStage(.rush)
-            let image = NSImage(size: view.frame.size)
-            image.lockFocus(); view.draw(view.bounds); image.unlockFocus()
-            precondition(image.tiffRepresentation != nil)
+            view.updateLayer()
+            precondition(view.layer?.contents as! CGImage? === view.currentFrame && view.currentFrame != nil)
         }
         print("PASS: body/eyes/fire recolor across all 6 states; black/white shading, alpha, unrelated pixels, persistence/reset")
     }
 
+    /// Renders the view's layer as Core Animation would and checks that every
+    /// sprite pixel lands upright at the right place with hard pixel edges.
+    static func checkLayerPlacement(_ view: PetView, _ loop: SpriteLoop) {
+        view.updateLayer()
+        let scale = Int(view.bounds.width) / loop.width
+        let width = loop.width * scale, height = loop.height * scale
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        bytes.withUnsafeMutableBytes { buffer in
+            let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            view.layer!.render(in: context)
+        }
+        var mismatches = 0
+        for y in 0..<loop.height { for x in 0..<loop.width {
+            let offset = ((y * scale + scale / 2) * width + x * scale + scale / 2) * 4
+            if (bytes[offset + 3] > 25) != loop.isOpaque(frame: 0, x: x, y: y) { mismatches += 1 }
+        } }
+        precondition(mismatches == 0, "Layer placement differs at \(mismatches) pixels")
+    }
+
     static func main() throws {
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
-        var loops = 0
-        for appearance in PetAppearance.allCases {
-            let small = appearance.size(forPreset: 4)
-            let normal = appearance.size(forPreset: 5)
-            precondition(small.width == appearance.canvasSize.width * 2)
-            precondition(normal.width == appearance.canvasSize.width * 3)
-            let view = try PetView(resources: resources, frame: NSRect(origin: .zero, size: small))
-            view.setPetAppearance(appearance)
-            for stage in PetStage.allCases {
-                let loop = try SpriteLoop(name: appearance.assetPrefix + stage.asset, resources: resources)
-                precondition(loop.images.count > 1)
-                precondition(loop.images.count == loop.durations.count)
-                precondition(loop.durations.allSatisfy { $0 > 0 })
-                view.setStage(stage)
-                let image = NSImage(size: small)
-                image.lockFocus()
-                view.draw(view.bounds)
-                image.unlockFocus()
-                precondition(image.tiffRepresentation != nil)
-                loops += 1
-            }
+        let small = PetAppearance.size(forPreset: 4)
+        let normal = PetAppearance.size(forPreset: 5)
+        precondition(small.width == PetAppearance.canvasSize.width * 2)
+        precondition(normal.width == PetAppearance.canvasSize.width * 3)
+        let view = try PetView(resources: resources, frame: NSRect(origin: .zero, size: normal))
+        for stage in PetStage.allCases {
+            let loop = try SpriteLoop(name: stage.asset, resources: resources)
+            precondition(loop.frames.count > 1)
+            precondition(loop.frames.count == loop.durations.count)
+            precondition(loop.durations.allSatisfy { $0 > 0 })
+            precondition(loop.frames.allSatisfy { $0.width == loop.width && $0.height == loop.height })
+            view.setStage(stage)
+            checkLayerPlacement(view, loop)
         }
-        print("PASS: \(loops) sprite loops decoded and rendered; \(PetAppearance.allCases.count) appearances; small/normal sizes")
+        print("PASS: \(PetStage.allCases.count) sprite loops decoded; layer frames upright and pixel-aligned; small/normal sizes")
         try checkColors(resources: resources)
     }
 }

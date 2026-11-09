@@ -4,8 +4,8 @@ AgentPet은 로컬 macOS 앱입니다. API 키를 요청하거나 외부 서버�
 
 ## 읽는 정보
 
-- `/bin/ps`로 실행 중인 프로세스의 PID와 실행 파일 이름을 확인합니다.
-- `/usr/sbin/lsof -nP`로 `codex` 프로세스가 열고 있는 `rollout-*.jsonl` 파일을 찾습니다. 로그에서 `task_started`, `task_complete`, `turn_aborted`, `shutdown_complete` 이벤트를 판별합니다. 같은 파일은 한 번만 셉니다.
+- macOS 프로세스 정보(`sysctl`)로 실행 중인 프로세스의 PID와 실행 파일 이름을 확인합니다. 별도 명령을 실행하지 않습니다.
+- macOS 파일 정보(`libproc`)로 `codex` 프로세스가 열고 있는 `rollout-*.jsonl` 파일을 찾습니다. 로그에서 `task_started`, `task_complete`, `turn_aborted`, `shutdown_complete` 이벤트를 판별합니다. 같은 파일은 한 번만 셉니다.
 - `~/.claude/sessions/*.json`에서 PID가 살아 있는 interactive 세션의 `busy`·`shell` 상태를 셉니다. `idle`과 종료된 프로세스는 제외합니다.
 - 추가 도구는 사용자가 연결한 hook·plugin이 `AgentPet --hook` 또는 `--signal`을 호출합니다. hook JSON은 메모리에서 이벤트 이름과 세션 ID를 판별하는 데만 쓰며, 프롬프트·도구 입력·응답·작업 경로·이메일을 파일에 저장하지 않습니다. 다른 프로그램의 설정은 앱이 자동으로 수정하지 않습니다.
 - macOS 프로세스 정보에서 세션 소유 프로세스의 PID·시작 시각을 확인합니다. 종료된 프로세스와 재사용된 PID의 신호는 세지 않습니다.

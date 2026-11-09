@@ -9,36 +9,50 @@ struct SpriteMetadata: Decodable {
 struct SpriteLoop {
     let width: Int
     let height: Int
-    let images: [NSImage]
-    let bitmaps: [NSBitmapImageRep]
+    let frames: [CGImage]
     let durations: [TimeInterval]
+    /// Per-frame hit mask, rows from the top; true where alpha > 0.1.
+    private let opaque: [[Bool]]
 
     init(name: String, resources: URL, colors: PetColors = .standard) throws {
         let metadata = try JSONDecoder().decode(SpriteMetadata.self,
             from: Data(contentsOf: resources.appendingPathComponent(name + ".json")))
-        let expected = name.hasPrefix("together-") ? NSSize(width: 96, height: 48) : NSSize(width: 48, height: 42)
         guard let atlas = NSImage(contentsOf: resources.appendingPathComponent(name + "-atlas.png")),
               let original = atlas.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              !metadata.durations.isEmpty, metadata.width == Int(expected.width), metadata.height == Int(expected.height),
+              !metadata.durations.isEmpty, metadata.width == Int(PetAppearance.canvasSize.width),
+              metadata.height == Int(PetAppearance.canvasSize.height),
               original.width == metadata.width * metadata.durations.count, original.height == metadata.height,
               metadata.durations.allSatisfy({ $0 > 0 }) else { throw ProbeError.command("Invalid sprite: \(name)") }
         let cg = try colors.recolor(original)
-        var images: [NSImage] = []
-        var bitmaps: [NSBitmapImageRep] = []
-        for index in metadata.durations.indices {
+        frames = try metadata.durations.indices.map { index in
             guard let cropped = cg.cropping(to: CGRect(x: index * metadata.width, y: 0,
                                                     width: metadata.width, height: metadata.height)) else {
                 throw ProbeError.command("Invalid frame: \(name)")
             }
-            let frame = name == "rush" ? try RushEmbers.render(on: cropped, frame: index, colors: colors) : cropped
-            images.append(NSImage(cgImage: frame, size: NSSize(width: metadata.width, height: metadata.height)))
-            bitmaps.append(NSBitmapImageRep(cgImage: frame))
+            return name == "rush" ? try RushEmbers.render(on: cropped, frame: index, colors: colors) : cropped
         }
-        self.images = images
-        self.bitmaps = bitmaps
+        opaque = try frames.map(Self.opaquePixels)
         width = metadata.width
         height = metadata.height
         durations = metadata.durations.map { Double($0) / 1000 }
+    }
+
+    func isOpaque(frame: Int, x: Int, y: Int) -> Bool {
+        (0..<width).contains(x) && (0..<height).contains(y) && opaque[frame][y * width + x]
+    }
+
+    private static func opaquePixels(_ image: CGImage) throws -> [Bool] {
+        var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        try bytes.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(data: buffer.baseAddress, width: image.width, height: image.height,
+                bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+                throw ProbeError.command("Alpha context unavailable")
+            }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        }
+        // 25/255 < 0.1 < 26/255: same cut as the previous NSColor.alphaComponent > 0.1 test.
+        return Swift.stride(from: 3, to: bytes.count, by: 4).map { bytes[$0] > 25 }
     }
 }
 
@@ -76,53 +90,49 @@ enum RushEmbers {
 final class PetView: NSView {
     var menuProvider: (() -> NSMenu)?
     var onMoveEnded: (() -> Void)?
-    private var loops: [String: SpriteLoop] = [:]
+    private var loops: [PetStage: SpriteLoop]
     private let resources: URL
-    private var colors: PetColors = .standard
+    private var colors: PetColors
     private var stage: PetStage = .idle
-    private var petAppearance: PetAppearance = .claude
     private var frameIndex = 0
     private var animationTimer: Timer?
     private var pointerTimer: Timer?
     private var suspended = false
     private var dragStart: (mouse: NSPoint, origin: NSPoint)?
     private var inMenu = false
-    private var activeLoop: SpriteLoop? { loops[petAppearance.assetPrefix + stage.asset] }
+    private var activeLoop: SpriteLoop? { loops[stage] }
 
-    init(resources: URL, frame: NSRect) throws {
+    init(resources: URL, frame: NSRect, colors: PetColors = .standard) throws {
         self.resources = resources
+        self.colors = colors
+        loops = try Self.loadLoops(resources: resources, colors: colors)
         super.init(frame: frame)
-        for prefix in PetAppearance.allCases.map(\.assetPrefix) {
-            for name in ["idle", "calm", "steady", "busy", "heated", "rush"] {
-                loops[prefix + name] = try SpriteLoop(name: prefix + name, resources: resources)
-            }
-        }
+        // Frames go straight to the layer and the compositor scales them with
+        // nearest-neighbour filtering, so no frame is redrawn on the CPU.
         wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
+        layerContentsPlacement = .scaleAxesIndependently
+        layer?.magnificationFilter = .nearest
         setAccessibilityElement(true)
         setAccessibilityRole(.image)
         setAccessibilityLabel("AgentPet")
-        pointerTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.updateMousePassThrough() }
-        RunLoop.main.add(pointerTimer!, forMode: .common)
+        setSuspended(false)
     }
     required init?(coder: NSCoder) { nil }
 
-    func setColors(_ next: PetColors) throws {
-        guard next != colors else { return }
-        var updated: [String: SpriteLoop] = [:]
+    private static func loadLoops(resources: URL, colors: PetColors) throws -> [PetStage: SpriteLoop] {
+        var loops: [PetStage: SpriteLoop] = [:]
         for stage in PetStage.allCases {
-            updated[stage.asset] = try SpriteLoop(name: stage.asset, resources: resources, colors: next)
+            loops[stage] = try SpriteLoop(name: stage.asset, resources: resources, colors: colors)
         }
-        loops = updated
-        colors = next
-        needsDisplay = true
+        return loops
     }
 
-    func setPetAppearance(_ next: PetAppearance) {
-        petAppearance = next
-        frameIndex = 0
+    func setColors(_ next: PetColors) throws {
+        guard next != colors else { return }
+        loops = try Self.loadLoops(resources: resources, colors: next)
+        colors = next
         needsDisplay = true
-        scheduleFrame()
     }
 
     func setStage(_ next: PetStage) {
@@ -135,6 +145,14 @@ final class PetView: NSView {
 
     func setSuspended(_ value: Bool) {
         suspended = value
+        pointerTimer?.invalidate()
+        pointerTimer = nil
+        if !value {
+            let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.updateMousePassThrough() }
+            timer.tolerance = 0.02
+            RunLoop.main.add(timer, forMode: .common)
+            pointerTimer = timer
+        }
         scheduleFrame()
     }
 
@@ -142,10 +160,10 @@ final class PetView: NSView {
         animationTimer?.invalidate()
         guard !suspended,
               !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
-              let loop = activeLoop, loop.images.count > 1 else { return }
+              let loop = activeLoop, loop.frames.count > 1 else { return }
         let timer = Timer(timeInterval: loop.durations[frameIndex], repeats: false) { [weak self] _ in
             guard let self, let loop = self.activeLoop else { return }
-            self.frameIndex = (self.frameIndex + 1) % loop.images.count
+            self.frameIndex = (self.frameIndex + 1) % loop.frames.count
             self.needsDisplay = true
             self.scheduleFrame()
         }
@@ -153,21 +171,17 @@ final class PetView: NSView {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        NSGraphicsContext.current?.imageInterpolation = .none
-        activeLoop?.images[frameIndex].draw(in: bounds, from: .zero,
-                operation: .sourceOver, fraction: 1, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.none.rawValue])
-    }
+    var currentFrame: CGImage? { activeLoop?.frames[frameIndex] }
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() { layer?.contents = currentFrame }
 
     private func updateMousePassThrough() {
-        guard let window, dragStart == nil, !inMenu else { return }
+        guard let window, dragStart == nil, !inMenu, let loop = activeLoop else { return }
         let point = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
-        guard let loop = activeLoop else { return }
         let x = Int(floor((point.x - bounds.minX) * CGFloat(loop.width) / bounds.width))
         let y = Int(floor((bounds.maxY - point.y) * CGFloat(loop.height) / bounds.height))
-        let opaque = (0..<loop.width).contains(x) && (0..<loop.height).contains(y)
-            && (loop.bitmaps[frameIndex].colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.1
-        window.ignoresMouseEvents = !opaque
+        let ignore = !loop.isOpaque(frame: frameIndex, x: x, y: y)
+        if window.ignoresMouseEvents != ignore { window.ignoresMouseEvents = ignore }
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
